@@ -328,6 +328,430 @@ sudo tail -f /var/log/secure
 sudo journalctl -u sshd -f
 ```
 
+
+---
+
+## 11. The `wheel` Group (RHEL/CentOS/Fedora) and `sudo` Group (Debian/Ubuntu)
+
+### What is `wheel`?
+
+On Red Hat‑based systems, the `wheel` group is a special administrative group. Users in `wheel` can execute commands as `root` using `sudo` (if configured in `/etc/sudoers`).
+
+**Check if `wheel` exists:**
+```bash
+getent group wheel
+```
+
+**Add a user to `wheel`:**
+```bash
+sudo usermod -aG wheel alice
+```
+
+**Verify:**
+```bash
+id alice
+# Output should show: groups=... ,wheel
+```
+
+### Debian/Ubuntu equivalent – `sudo` group
+
+On Debian/Ubuntu, the group is named `sudo`:
+```bash
+sudo usermod -aG sudo bob
+```
+
+### Why use `wheel`/`sudo` instead of logging in as root?
+
+| Reason | Explanation |
+|--------|-------------|
+| **Auditing** | Every `sudo` command is logged (who, what, when). |
+| **Least privilege** | Users get only the permissions they need. |
+| **Accountability** | Commands are traceable to individual users. |
+| **Security** | Root login can be disabled entirely (`PermitRootLogin no` in `/etc/ssh/sshd_config`). |
+
+---
+
+## 12. `/etc/sudoers` – Deep Dive
+
+The `/etc/sudoers` file controls who can run what commands with `sudo`. **Never edit this file directly** – always use `visudo`, which checks syntax before saving.
+
+### 12.1 Using `visudo`
+
+```bash
+sudo visudo
+```
+
+**What `visudo` does:**
+- Locks the file to prevent concurrent edits.
+- Performs syntax validation.
+- If an error is found, it asks how to proceed (save anyway? re-edit? abort?).
+
+### 12.2 Basic `/etc/sudoers` Syntax
+
+```
+user/group    host=(run_as_user)    command
+```
+
+| Field | Meaning | Example |
+|-------|---------|---------|
+| `user/group` | Username or `%groupname` | `alice`, `%wheel` |
+| `host` | Usually `ALL` (all hosts) | `ALL` |
+| `(run_as_user)` | User to run as – `(root)` or `(ALL)` | `(root)` or `(ALL:ALL)` |
+| `command` | Full path to command (or `ALL`) | `/bin/systemctl restart nginx` |
+
+### 12.3 Common Examples – Add these to your notes as reference
+
+#### Example 1: Allow a user to run any command as root
+```
+alice    ALL=(root)    ALL
+```
+
+#### Example 2: Allow a group (`wheel`) to run any command as root
+```
+%wheel   ALL=(root)    ALL
+```
+
+#### Example 3: Allow a user to run specific commands without a password
+```
+bob      ALL=(root)    NOPASSWD: /bin/systemctl restart nginx, /bin/systemctl reload nginx
+```
+
+#### Example 4: Allow a user to run any command but require password (default)
+```
+charlie  ALL=(root)    ALL
+```
+
+#### Example 5: Allow a user to run commands as any user (not just root)
+```
+david    ALL=(ALL)     ALL
+```
+
+#### Example 6: Allow a group to run only systemctl for specific services
+```
+%webadmins    ALL=(root)    /bin/systemctl restart nginx, /bin/systemctl reload nginx, /bin/systemctl status nginx
+```
+
+#### Example 7: Deny a specific command while allowing others
+```
+alice    ALL=(root)    ALL, !/usr/bin/passwd root, !/bin/su -
+```
+> This allows all commands except changing root's password or switching to root via `su`.
+
+#### Example 8: Allow a user to run commands without a password for a specific script
+```
+deploy   ALL=(root)    NOPASSWD: /usr/local/bin/deploy.sh
+```
+
+### 12.4 Important `sudoers` Aliases (for cleaner config)
+
+```
+User_Alias     WEBADMINS = alice, bob, charlie
+Cmnd_Alias     WEB_CMDS = /bin/systemctl restart nginx, /bin/systemctl reload nginx
+Runas_Alias    WEB_RUNAS = www-data, root
+
+WEBADMINS   ALL=(WEB_RUNAS)   WEB_CMDS
+```
+
+### 12.5 Verify `sudo` access for a user
+
+```bash
+sudo -l -U alice
+```
+
+This lists what commands `alice` is allowed to run.
+
+### 12.6 Common `sudo` troubleshooting
+
+| Problem | Check |
+|---------|-------|
+| User not in `sudoers` | `groups username` – are they in `wheel` or `sudo`? |
+| Syntax error in `/etc/sudoers` | Run `sudo visudo -c` to check syntax |
+| Command path wrong | Use `which nginx` to find full path |
+| `sudo` still asks for password | Look for `NOPASSWD:` in the rule |
+| User is in group but can't run | Ensure group line has `%` prefix (`%wheel` not `wheel`) |
+
+### 12.7 Default `sudo` behavior (no `NOPASSWD`)
+
+When `NOPASSWD` is **not** specified, `sudo` asks for the **user's own password** (not root's password). The password is cached for 5 minutes by default (configurable with `timestamp_timeout` in `/etc/sudoers`).
+
+---
+
+## 13. `/etc/login.defs` – Default User Creation Settings
+
+This file controls default values for `useradd` and password aging policies. It is **read by `useradd`**, not a database itself.
+
+### 13.1 Important Parameters in `/etc/login.defs`
+
+| Parameter | Meaning | Typical Value |
+|-----------|---------|---------------|
+| `PASS_MAX_DAYS` | Maximum days a password is valid | `90` |
+| `PASS_MIN_DAYS` | Minimum days between password changes | `7` |
+| `PASS_WARN_AGE` | Days before expiry to show warning | `7` |
+| `UID_MIN` | Minimum UID for normal users | `1000` |
+| `UID_MAX` | Maximum UID for normal users | `60000` |
+| `GID_MIN` | Minimum GID for normal groups | `1000` |
+| `GID_MAX` | Maximum GID for normal groups | `60000` |
+| `CREATE_HOME` | Create home directory by default? | `yes` |
+| `UMASK` | Default file creation mask (for user's home) | `077` (private) or `022` |
+| `USERGROUPS_ENAB` | Delete user's private group when last user removed? | `yes` |
+| `ENCRYPT_METHOD` | Hashing algorithm for passwords | `SHA512` or `YESCRYPT` |
+| `MAIL_DIR` | Location of user mail spool | `/var/spool/mail` |
+
+### 13.2 View current settings
+
+```bash
+grep -E "^(PASS|UID|GID|CREATE_HOME|UMASK)" /etc/login.defs
+```
+
+### 13.3 Example: Change default UID range
+
+Edit `/etc/login.defs` as root:
+```
+UID_MIN     2000
+UID_MAX     50000
+```
+Now new users will get UIDs starting from 2000.
+
+### 13.4 Overriding `/etc/login.defs` with `useradd` options
+
+Command-line options to `useradd` take precedence over `/etc/login.defs`:
+
+| `/etc/login.defs` parameter | `useradd` override |
+|----------------------------|--------------------|
+| `UID_MIN` / `UID_MAX` | `-u` (specific UID) |
+| `CREATE_HOME yes` | `-M` (do not create home) |
+| `CREATE_HOME no` | `-m` (force create home) |
+| `UMASK 022` | Not directly – use `-m` + `/etc/skel` permissions |
+| `PASS_MAX_DAYS` | Can't be overridden by `useradd` – use `chage` after creation |
+
+---
+
+## 14. Real-World Examples – User & Group Management Scenarios
+
+### Scenario 1: Onboarding a new developer (Alice)
+
+**Requirements:**
+- Username: `alice`
+- Full name: "Alice Johnson"
+- Primary group: `developers`
+- Secondary groups: `docker`, `wheel` (for sudo)
+- Home directory: `/home/alice`
+- Default shell: `/bin/bash`
+- Password must expire after 90 days
+
+**Commands:**
+```bash
+# Create group if not exists
+sudo groupadd developers
+
+# Create user with custom comment, primary group, secondary groups
+sudo useradd -c "Alice Johnson" -g developers -G docker,wheel -s /bin/bash alice
+
+# Set initial password (force change on first login)
+sudo passwd -e alice
+
+# Set password aging: max 90 days, warn 7 days before
+sudo chage -M 90 -W 7 alice
+
+# Verify
+id alice
+sudo chage -l alice
+```
+
+### Scenario 2: Adding an existing user (bob) to multiple groups without losing current groups
+
+**Current groups of bob:** `bob` (primary), `sales` (secondary)
+
+**New requirement:** Also add to `marketing` and `developers`
+
+**Command:**
+```bash
+sudo usermod -aG marketing,developers bob
+```
+
+**Check:**
+```bash
+groups bob
+# Output: bob sales marketing developers
+```
+
+### Scenario 3: Creating a service user for a web application
+
+**Requirements:**
+- Username: `webapp`
+- No login shell (use `/sbin/nologin`)
+- No home directory
+- UID in system range (e.g., 450)
+- Part of group `www-data`
+
+**Commands:**
+```bash
+sudo groupadd -r www-data
+sudo useradd -r -u 450 -g www-data -s /sbin/nologin -M -c "Web Application Service" webapp
+```
+
+**Verify:**
+```bash
+grep webapp /etc/passwd
+# Output: webapp:x:450:450:Web Application Service:/home/webapp:/sbin/nologin
+# (home directory listed but not created because of -M)
+```
+
+### Scenario 4: Temporarily lock a user who went on leave
+
+```bash
+sudo usermod -L alice
+# or
+sudo passwd -l alice
+```
+
+**Unlock when they return:**
+```bash
+sudo usermod -U alice
+```
+
+### Scenario 5: Force all users to change passwords next login (e.g., after security breach)
+
+```bash
+# For a single user
+sudo passwd -e alice
+
+# For all normal users (UID >= 1000)
+awk -F: '$3>=1000 {print $1}' /etc/passwd | while read user; do sudo passwd -e "$user"; done
+```
+
+### Scenario 6: Create a shared group and add multiple users at once
+
+```bash
+# Create group
+sudo groupadd projectx
+
+# Add three users (assume they exist)
+sudo gpasswd -M alice,bob,charlie projectx
+
+# Verify members
+getent group projectx
+```
+
+### Scenario 7: Remove a user and reassign their files to another user
+
+```bash
+# Delete user 'olduser' but keep home directory
+sudo userdel olduser
+
+# Reassign all files owned by olduser (UID 1010) to newuser (UID 1020)
+sudo find / -user 1010 -exec chown 1020 {} \;
+```
+
+### Scenario 8: Allow a user to run `systemctl` only for nginx without password
+
+Edit `/etc/sudoers` with `visudo` and add:
+```
+deploy    ALL=(root)    NOPASSWD: /bin/systemctl status nginx, /bin/systemctl restart nginx
+```
+
+Test:
+```bash
+sudo -u deploy sudo -l
+```
+
+### Scenario 9: Create a user with a custom home directory outside `/home`
+
+```bash
+sudo useradd -d /data/ftp/anna -m -c "Anna FTP User" -s /bin/bash anna
+```
+
+### Scenario 10: Set password aging policy for a new user with very strict rules
+
+```bash
+# Create user
+sudo useradd strict_user
+
+# Set password (force change immediately)
+sudo passwd -e strict_user
+
+# Set: min 1 day, max 30 days, warn 5 days, inactive 3 days, expire on 2026-12-31
+sudo chage -m 1 -M 30 -W 5 -I 3 -E 2026-12-31 strict_user
+```
+
+---
+
+## 15. Quick Command Cheat Sheet for Users & Groups
+
+| Task | Command |
+|------|---------|
+| List all users | `awk -F: '{print $1}' /etc/passwd` |
+| List all groups | `awk -F: '{print $1}' /etc/group` |
+| Show user's UID, GID, groups | `id username` |
+| Show user's groups only | `groups username` |
+| Create user with defaults | `sudo useradd username` |
+| Create user with home, shell, comment | `sudo useradd -c "Name" -m -s /bin/bash username` |
+| Set/change password | `sudo passwd username` |
+| Force password change next login | `sudo passwd -e username` |
+| Lock account | `sudo usermod -L username` |
+| Unlock account | `sudo usermod -U username` |
+| Add user to group (append) | `sudo usermod -aG groupname username` |
+| Remove user from group | `sudo gpasswd -d username groupname` |
+| Delete user (keep home) | `sudo userdel username` |
+| Delete user + home + mail | `sudo userdel -r username` |
+| Create group | `sudo groupadd groupname` |
+| Delete group | `sudo groupdel groupname` |
+| Show group members | `getent group groupname` |
+| Set group members (replace) | `sudo gpasswd -M user1,user2 groupname` |
+| View sudo privileges for user | `sudo -l -U username` |
+| Check sudoers syntax | `sudo visudo -c` |
+| View password aging | `sudo chage -l username` |
+
+---
+
+## 16. Common Pitfalls and How to Avoid Them
+
+| Pitfall | Solution |
+|---------|----------|
+| Forgetting `-a` with `usermod -G` | Always use `-aG` unless you intend to replace all groups |
+| Deleting a user with `userdel` (no `-r`) leaves home directory | Use `userdel -r` or manually clean up |
+| Editing `/etc/sudoers` directly | Always use `visudo` – syntax errors break `sudo` for everyone |
+| Giving `NOPASSWD: ALL` too broadly | Limit to specific commands and users |
+| Not checking if a group is a primary group before `groupdel` | Use `grep :gid: /etc/passwd` to find users with that primary group |
+| UID/GID conflicts when restoring from backup | Use `-u` and `-g` to match original IDs |
+
+---
+
+## 17. Verification Lab – Test Your Knowledge
+
+Run these commands and explain the output:
+
+1. `sudo useradd -m -s /bin/bash -c "Test User" -G wheel testuser`
+2. `sudo passwd -e testuser`
+3. `id testuser`
+4. `sudo chage -l testuser`
+5. `sudo usermod -aG docker testuser`
+6. `groups testuser`
+7. `sudo userdel -r testuser`
+
+Then, in `/etc/sudoers` (using `visudo`), add a line that allows user `testuser` to run `/bin/systemctl status *` without a password. Verify with `sudo -l -U testuser`.
+
+---
+
+## Final Check – What's Now Covered
+
+| Topic | Status |
+|-------|--------|
+| User types and UID ranges | ✓ |
+| Primary vs secondary groups | ✓ |
+| `/etc/passwd`, `/etc/shadow`, `/etc/group`, `/etc/gshadow` | ✓ |
+| `useradd`, `usermod`, `userdel` with all options | ✓ |
+| `groupadd`, `groupmod`, `groupdel` | ✓ |
+| `passwd`, `chage` | ✓ |
+| `gpasswd` (add, remove, set members) | ✓ |
+| `wheel` / `sudo` groups | ✓ |
+| `/etc/sudoers` detailed syntax, `visudo`, examples, aliases | ✓ |
+| `/etc/login.defs` parameters and usage | ✓ |
+| Real-world scenarios (10 examples) | ✓ |
+| Cheat sheet | ✓ |
+| Pitfalls and verification lab | ✓ |
+
+
 ---
 
 ## Key Takeaways for Cloud Engineering
