@@ -733,6 +733,364 @@ Then, in `/etc/sudoers` (using `visudo`), add a line that allows user `testuser`
 
 ---
 
+## 18. Complete Practical Mastery Test – Users & Groups
+
+This test simulates real‑world administrative tasks covering **every section** of this chapter. Perform each task on a Linux VM or container with `sudo` access. Verify your work with the provided commands. **Attempt all tasks before looking at the answer key.**
+
+> **Prerequisite:** Take a snapshot of your VM or ensure you are on a disposable test system.
+
+---
+
+### Part 1: Understanding Configuration Files (Inspection)
+
+**Task 1.1 – Decode `/etc/passwd` and `/etc/shadow`**
+
+Given this `/etc/passwd` entry:
+```
+alice:x:1001:1001:Alice Johnson, IT Dept:/home/alice:/bin/bash
+```
+Answer:
+1. What does the `x` in the password field signify?
+2. What is Alice's primary group ID?
+3. Where is the actual password hash stored?
+
+Given this `/etc/shadow` entry:
+```
+bob:$6$randomsalt$hashedpassword...:19500:7:90:14:30:19600:
+```
+Answer:
+1. How many days must Bob wait before changing his password again?
+2. After how many days will Bob be warned about password expiration?
+3. When does Bob's account absolutely expire? (Hint: field 8)
+
+**Task 1.2 – Inspect `/etc/login.defs`**
+```bash
+grep -E "^(PASS_MAX_DAYS|UID_MIN|CREATE_HOME)" /etc/login.defs
+```
+What is the default maximum password age for new users on this system?
+
+---
+
+### Part 2: User Creation and Basic Management
+
+**Task 2.1 – Create a User with Custom Attributes**
+Create a new user `intern1` with:
+- Full name: "Summer Intern 2026"
+- Primary group: `interns` (create if needed)
+- Secondary groups: `docker`, `wheel`
+- Home directory: `/home/intern1`
+- Shell: `/bin/bash`
+- UID: 1500
+
+**Task 2.2 – Set Password and Force Change**
+Set a temporary password for `intern1` and force a password change on first login.
+
+**Task 2.3 – Verify User Creation**
+Check `intern1` exists and display all group memberships.
+```bash
+id intern1
+groups intern1
+```
+
+**Task 2.4 – Create a Service Account**
+Create a system user `monitor_app` with:
+- No login shell (`/sbin/nologin`)
+- No home directory
+- UID 450
+- Primary group `monitor` (create if needed)
+
+---
+
+### Part 3: Modifying Existing Users and Groups
+
+**Task 3.1 – Add User to Additional Group**
+Create group `project_alpha` and add `intern1` to it **without removing** existing secondary groups.
+
+**Task 3.2 – Change User’s Primary Group**
+Change `intern1`’s primary group to `project_alpha`. What happens to the original primary group `interns`?
+
+**Task 3.3 – Rename a User**
+Rename `intern1` to `summer_intern`.
+
+**Task 3.4 – Move Home Directory**
+Move `summer_intern`’s home directory to `/data/home/summer_intern` (assume `/data/home` exists). Ensure all files are moved.
+
+**Task 3.5 – Lock and Unlock Account**
+Lock the account of `summer_intern`. Verify the password field in `/etc/shadow` starts with `!`. Then unlock the account.
+
+---
+
+### Part 4: Password Aging Policies
+
+**Task 4.1 – Set Strict Aging for `summer_intern`**
+Configure:
+- Password must be changed every 60 days
+- Minimum 1 day between changes
+- Warning 7 days before expiry
+- Account inactive if password not changed for 10 days after expiry
+- Account expires on December 31, 2026
+
+**Task 4.2 – Verify Aging Settings**
+```bash
+sudo chage -l summer_intern
+```
+
+**Task 4.3 – Force All Non‑System Users to Change Password at Next Login**
+Write a one‑liner that forces a password change for every user with UID >= 1000.
+
+---
+
+### Part 5: Group Management
+
+**Task 5.1 – Create a Group with Specific GID**
+Create group `finance` with GID 3000.
+
+**Task 5.2 – Add Multiple Users to a Group at Once**
+Create three temporary users (`user1`, `user2`, `user3`). Add them all to `finance` in a single command, replacing any existing membership list.
+
+**Task 5.3 – Remove a User from a Group**
+Remove `user2` from the `finance` group using `gpasswd`.
+
+**Task 5.4 – Delete a Group**
+Attempt to delete group `interns`. If it fails, identify why and resolve the issue before deleting it.
+
+---
+
+### Part 6: `sudo` Configuration and `visudo`
+
+**Task 6.1 – Grant Passwordless `sudo` for Specific Commands**
+Allow `summer_intern` to run the following commands **without a password**:
+- `/bin/systemctl restart nginx`
+- `/bin/systemctl status nginx`
+- `/bin/journalctl -u nginx`
+
+Use `visudo` to add the rule.
+
+**Task 6.2 – Create a Command Alias and User Alias**
+Using `visudo`, define:
+- `User_Alias WEBTEAM = summer_intern, user1`
+- `Cmnd_Alias WEB_CMDS = /bin/systemctl restart nginx, /bin/systemctl status nginx, /bin/journalctl -u nginx`
+- Grant `WEBTEAM` passwordless access to `WEB_CMDS`.
+
+**Task 6.3 – Verify `sudo` Privileges**
+```bash
+sudo -l -U summer_intern
+sudo -l -U user1
+```
+
+**Task 6.4 – Test the Configuration**
+Switch to `summer_intern` and test running an allowed command with `sudo`. Confirm no password is prompted.
+
+---
+
+### Part 7: Troubleshooting and Log Analysis
+
+**Task 7.1 – Check Authentication Logs**
+Generate a failed login attempt (e.g., `su - summer_intern` with wrong password). Locate the failure in the appropriate log file (`/var/log/auth.log` or `/var/log/secure`).
+
+**Task 7.2 – Find Users with a Specific Primary Group**
+Write a command to list all users whose primary group is `project_alpha`.
+
+**Task 7.3 – Identify Orphaned Home Directories**
+Create a test user, delete it **without** the `-r` flag, then find and remove the orphaned home directory.
+
+---
+
+### Part 8: Real‑World Scenario – Onboarding a DevOps Engineer
+
+**Scenario:** Onboard **Emma Lopez** (username `elopez`) with:
+- Full name: "Emma Lopez"
+- Primary group: `devops` (create it)
+- Secondary groups: `docker`, `wheel`, `developers` (create `developers` if needed)
+- Home directory: `/home/elopez` with skeleton files
+- Shell: `/bin/zsh` (install `zsh` if not present)
+- Password must be changed on first login, then every 90 days with 7‑day warning
+
+**Task 8.1 – Execute Onboarding**
+Write and execute all necessary commands.
+
+**Task 8.2 – Grant `sudo` for Docker Commands**
+Using `visudo`, allow `elopez` to run **any** `docker` command (e.g., `/usr/bin/docker *`) without a password.
+
+**Task 8.3 – Document the Process**
+Create a markdown file `onboarding_elopez.md` containing all commands used and verification output (`id elopez`, `chage -l elopez`, `sudo -l -U elopez`).
+
+---
+
+### Part 9: Cleanup and Restoration
+
+**Task 9.1 – Remove All Test Users and Groups**
+Delete all users created in this test (`summer_intern`, `monitor_app`, `user1`, `user2`, `user3`, `elopez`) along with their home directories. Delete the groups `interns`, `project_alpha`, `finance`, `devops`, `developers`, `monitor`.
+
+**Task 9.2 – Verify No Artifacts Remain**
+Check `/etc/passwd`, `/etc/group`, and `/home`.
+
+---
+
+## 19. Practical Test Answer Key
+
+<details>
+<summary><b>Click to reveal answers – attempt the test first!</b></summary>
+
+### Part 1 Answers
+
+**1.1**
+1. `x` = password hash is stored in `/etc/shadow`.
+2. Primary group ID = `1001`.
+3. `/etc/shadow`.
+
+**1.2**
+- Minimum days = 7, Warn days = 14, Expiry field 8 = 19600 (approx 2023-09-01).
+
+### Part 2 Commands
+
+```bash
+# 2.1
+sudo groupadd interns
+sudo useradd -u 1500 -g interns -G docker,wheel -c "Summer Intern 2026" -m -s /bin/bash intern1
+
+# 2.2
+sudo passwd intern1
+sudo passwd -e intern1
+
+# 2.4
+sudo groupadd -r monitor
+sudo useradd -r -u 450 -g monitor -s /sbin/nologin -M -c "Monitoring Service" monitor_app
+```
+
+### Part 3 Commands
+
+```bash
+# 3.1
+sudo groupadd project_alpha
+sudo usermod -aG project_alpha intern1
+
+# 3.2
+sudo usermod -g project_alpha intern1
+# 'interns' remains as a secondary group.
+
+# 3.3
+sudo usermod -l summer_intern intern1
+
+# 3.4
+sudo mkdir -p /data/home
+sudo usermod -d /data/home/summer_intern -m summer_intern
+
+# 3.5
+sudo usermod -L summer_intern
+sudo grep summer_intern /etc/shadow   # should see '!'
+sudo usermod -U summer_intern
+```
+
+### Part 4 Commands
+
+```bash
+# 4.1
+sudo chage -M 60 -m 1 -W 7 -I 10 -E 2026-12-31 summer_intern
+
+# 4.3
+awk -F: '$3>=1000 {print $1}' /etc/passwd | while read user; do sudo passwd -e "$user"; done
+```
+
+### Part 5 Commands
+
+```bash
+# 5.1
+sudo groupadd -g 3000 finance
+
+# 5.2
+for i in 1 2 3; do sudo useradd -m user$i; done
+sudo gpasswd -M user1,user2,user3 finance
+
+# 5.3
+sudo gpasswd -d user2 finance
+
+# 5.4
+# Find users with primary group 'interns' and reassign them first.
+sudo groupdel interns   # only after no user has it as primary
+```
+
+### Part 6 Configuration
+
+Add to `/etc/sudoers` via `sudo visudo`:
+```
+User_Alias WEBTEAM = summer_intern, user1
+Cmnd_Alias WEB_CMDS = /bin/systemctl restart nginx, /bin/systemctl status nginx, /bin/journalctl -u nginx
+WEBTEAM ALL=(root) NOPASSWD: WEB_CMDS
+```
+
+Test:
+```bash
+sudo -u summer_intern sudo systemctl status nginx   # no password prompt
+```
+
+### Part 7 Commands
+
+```bash
+# 7.1
+sudo tail /var/log/auth.log   # Debian/Ubuntu
+sudo tail /var/log/secure     # RHEL
+
+# 7.2
+getent passwd | awk -F: '$4 == "'$(getent group project_alpha | cut -d: -f3)'" {print $1}'
+
+# 7.3
+sudo useradd testorphan
+sudo userdel testorphan
+ls -ld /home/testorphan   # still exists
+sudo rm -rf /home/testorphan
+```
+
+### Part 8 Commands
+
+```bash
+# 8.1
+sudo groupadd devops
+sudo groupadd developers
+sudo useradd -c "Emma Lopez" -g devops -G docker,wheel,developers -m -s /bin/zsh elopez
+sudo passwd -e elopez
+sudo chage -M 90 -W 7 elopez
+```
+
+**8.2** Add to `/etc/sudoers`:
+```
+elopez ALL=(root) NOPASSWD: /usr/bin/docker *
+```
+
+### Part 9 Cleanup
+
+```bash
+sudo userdel -r summer_intern monitor_app user1 user2 user3 elopez
+sudo groupdel interns project_alpha finance devops developers monitor
+# Verify with: getent passwd, getent group, ls /home
+```
+
+</details>
+
+---
+
+## 20. Self‑Evaluation Checklist
+
+| I can... | Done |
+|----------|------|
+| Explain each field in `/etc/passwd` and `/etc/shadow` | ☐ |
+| Create a user with custom UID, home, shell, comment, and groups | ☐ |
+| Distinguish between primary and secondary groups | ☐ |
+| Modify a user’s groups without losing existing memberships (`-aG`) | ☐ |
+| Lock and unlock an account using `usermod` or `passwd` | ☐ |
+| Set password aging policies with `chage` | ☐ |
+| Create and delete groups, including handling primary group conflicts | ☐ |
+| Use `gpasswd` to manage group memberships and administrators | ☐ |
+| Safely edit `/etc/sudoers` with `visudo` and define aliases | ☐ |
+| Grant passwordless `sudo` for specific commands | ☐ |
+| Troubleshoot authentication issues using log files | ☐ |
+| Automate bulk user operations with `awk` and loops | ☐ |
+| Perform a complete user offboarding (including file reassignment) | ☐ |
+| Understand UID/GID ranges and system vs. normal users | ☐ |
+
+
+---
+
 ## Final Check – What's Now Covered
 
 | Topic | Status |
