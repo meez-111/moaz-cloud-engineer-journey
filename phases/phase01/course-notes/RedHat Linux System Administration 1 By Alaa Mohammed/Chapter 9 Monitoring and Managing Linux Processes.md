@@ -1,5 +1,5 @@
 
-# Chapter 9: Monitoring and Managing Linux Processes
+# Chapter 9: Monitoring and Managing Linux Processes – Complete Professional Reference
 
 ## 1. What is a Process?
 
@@ -288,11 +288,85 @@ top -1
 
 ---
 
-## 8. Killing Processes – `kill`, `pkill`, `killall`
+## 8. Additional Process Listing and Tree Tools
 
-### Signals
+### 8.1 `pstree` – Display Process Tree Visually
 
-A **signal** is a software interrupt sent to a process. Common signals:
+```bash
+pstree -p          # show PIDs
+pstree -u          # show user ownership
+pstree -a          # show command line arguments
+pstree -s PID      # show only ancestors of PID
+```
+
+### 8.2 `pgrep` – Advanced Process Finding
+
+More powerful than `pidof`. Options:
+
+| Option | Meaning | Example |
+|--------|---------|---------|
+| `-u user` | Processes owned by user | `pgrep -u alice` |
+| `-P PID` | Child processes of PID | `pgrep -P 1234` |
+| `-f` | Match full command line | `pgrep -f "nginx: worker"` |
+| `-l` | Show process name + PID | `pgrep -l ssh` |
+| `-c` | Count matches | `pgrep -c bash` |
+
+### 8.3 `pkill` – Kill by Name with Filters
+
+Same options as `pgrep`. Example:
+```bash
+pkill -f "long_running_script"   # kill by full command line
+pkill -u alice                   # kill all processes of user alice
+```
+
+### 8.4 `pidof` – Simple PID by Exact Name
+
+```bash
+pidof sshd
+# Output: 987 654 321
+```
+
+---
+
+## 9. The `/proc` Filesystem – Deep Process Inspection
+
+`/proc` is a virtual filesystem containing runtime system information. Each process has a subdirectory `/proc/[PID]/`.
+
+| File / Directory | Purpose |
+|------------------|---------|
+| `/proc/[PID]/cmdline` | Command line used to start the process (null‑separated). |
+| `/proc/[PID]/environ` | Environment variables of the process. |
+| `/proc/[PID]/fd/` | Directory of open file descriptors (links to actual files/sockets). |
+| `/proc/[PID]/exe` | Symlink to the executable binary. |
+| `/proc/[PID]/cwd` | Symlink to current working directory. |
+| `/proc/[PID]/status` | Human‑readable status (Name, State, Uid, VmRSS, Threads). |
+| `/proc/[PID]/stat` | Machine‑readable status (used by `ps`). |
+| `/proc/[PID]/limits` | Resource limits (ulimit). |
+| `/proc/[PID]/oom_score` | Current OOM score (higher = more likely to be killed). |
+| `/proc/[PID]/oom_adj` | OOM adjustment value (-1000 to 1000) to influence killer. |
+
+**Example: Find what files a process has open:**
+```bash
+ls -l /proc/1234/fd/
+```
+
+**Example: See full command line of a process (when `ps` truncates):**
+```bash
+cat /proc/1234/cmdline | tr '\0' ' '
+```
+
+---
+
+## 10. Killing Processes – Signals and Commands
+
+### Signals List
+
+All signals can be listed with:
+```bash
+kill -l
+```
+
+Common signals:
 
 | Signal Number | Name | Effect |
 |---------------|------|--------|
@@ -303,7 +377,7 @@ A **signal** is a software interrupt sent to a process. Common signals:
 | `18` | `SIGCONT` | Continue a stopped process |
 | `19` | `SIGSTOP` | Stop (pause) a process |
 
-### `kill` command
+### `kill` Command
 ```bash
 kill PID                # sends SIGTERM (15)
 kill -15 PID            # same as above
@@ -313,7 +387,7 @@ kill -STOP PID          # pause process
 kill -CONT PID          # resume paused process
 ```
 
-### `pkill` – kill by name
+### `pkill` – kill by name (supports `-f`, `-u`, etc.)
 ```bash
 pkill sleep             # sends SIGTERM to all "sleep" processes
 pkill -9 sleep          # force kill all sleep processes
@@ -324,15 +398,34 @@ pkill -9 sleep          # force kill all sleep processes
 killall sleep           # kills all processes named exactly "sleep"
 ```
 
-### `pidof` – Find PID by process name
+---
+
+## 11. Keeping Processes Alive After Logout
+
+| Method | Command | When to Use |
+|--------|---------|-------------|
+| `nohup` | `nohup long_script.sh &` | Start a process that ignores SIGHUP. Output goes to `nohup.out`. |
+| `disown` | `long_script &` then `disown %1` | Already started a job; detach it from shell. |
+| `screen` | `screen` then `Ctrl+A D` to detach | Full terminal multiplexer with reattach capability. |
+| `tmux` | `tmux new -s mysession` then `Ctrl+B D` | Modern alternative to screen with more features. |
+
+### `screen` Basics
 ```bash
-pidof sshd
-# Output: 987 654 321
+screen -S session_name     # create named session
+screen -ls                 # list sessions
+screen -r session_name     # reattach
+```
+
+### `tmux` Basics
+```bash
+tmux new -s dev            # new session
+tmux ls                    # list sessions
+tmux attach -t dev         # reattach
 ```
 
 ---
 
-## 9. Process Priority – `nice` and `renice`
+## 12. Process Priority – `nice` and `renice`
 
 Linux processes run with a **nice value** ranging from `-20` (highest priority) to `+19` (lowest priority).  
 Default nice value for new processes is `0` (or inherited from parent).
@@ -359,15 +452,15 @@ renice -n -10 -u alice   # change all processes of user alice
 
 ---
 
-## 10. System Resource Commands (Disk & Memory)
+## 13. System Resource Commands
 
-### `df` – Disk space usage (file systems)
+### 13.1 `df` – Disk space usage (file systems)
 ```bash
 df -h          # human‑readable sizes
 df -i          # show inode usage
 ```
 
-### `free` – Memory usage
+### 13.2 `free` – Memory usage
 ```bash
 free -h        # human‑readable
 free -m        # in MB
@@ -381,26 +474,97 @@ Mem:           7.7G        2.1G        4.2G        123M        1.4G        5.1G
 Swap:          2.0G        0.0B        2.0G
 ```
 
-### `lscpu` – CPU architecture info
+### 13.3 `uptime` – Quick load average
+```bash
+uptime
+# 14:23:45 up 10 days,  3:15,  2 users,  load average: 0.05, 0.10, 0.15
+```
+Load average shows 1, 5, and 15 minute averages of runnable + uninterruptible tasks.
+
+### 13.4 `lscpu` – CPU architecture info
 ```bash
 lscpu
 ```
 Shows cores, threads, model, virtualization support, etc.
 
+### 13.5 `vmstat` – Virtual memory statistics
+```bash
+vmstat 2 5                # every 2 seconds, 5 times
+```
+Columns: `r` (runnable), `b` (blocked on I/O), `swpd`, `free`, `buff`, `cache`, `si` (swap in), `so` (swap out), `bi` (block in), `bo` (block out), `in` (interrupts), `cs` (context switches), `us`, `sy`, `id`, `wa` (I/O wait), `st` (steal).
+
+### 13.6 `iostat` – CPU and I/O statistics
+```bash
+iostat -x 2               # extended stats every 2 sec
+```
+Look for `%util` (device saturation) and `await` (I/O wait time).
+
+### 13.7 `sar` – System Activity Reporter (requires `sysstat` package)
+```bash
+sar -u 2 5                # CPU usage every 2 sec, 5 times
+sar -r                    # memory usage history
+sar -n DEV                # network device statistics
+```
+
 ---
 
-## 11. Additional Process Tools (Brief)
+## 14. Advanced Troubleshooting Tools
 
-| Tool | Description | Install / Run |
-|------|-------------|---------------|
-| `htop` | Interactive, color‑coded, scrollable process viewer | `sudo apt install htop` (Debian) / `sudo yum install htop` (RHEL); then `htop` |
-| `atop` | Advanced performance monitor (CPU, memory, disk, network per process) | `sudo apt install atop` / `sudo dnf install atop`; then `atop` |
-| `pgrep` | Find PIDs by name/pattern | `pgrep systemd`, `pgrep -u root bash` |
-| `watch` | Run a command repeatedly | `watch -n 1 ps -ef` |
+### 14.1 `lsof` – List Open Files (everything is a file)
+```bash
+lsof -i :80                # which process is listening on port 80?
+lsof -p 1234               # all files opened by PID 1234
+lsof -u alice              # files opened by user alice
+lsof /var/log/syslog       # processes using this file
+lsof +D /home              # all open files under /home
+```
+
+### 14.2 `strace` – Trace System Calls and Signals
+```bash
+strace -p 1234             # attach to running process
+strace -c -p 1234          # summary of syscalls when detached (Ctrl+C)
+strace -e open ls          # trace only open() calls of 'ls'
+strace -o output.txt command  # save trace to file
+```
+Use `strace` when a process hangs or behaves unexpectedly.
+
+### 14.3 `time` – Measure Execution Duration
+```bash
+time cp largefile.iso /backup/
+# real: wall clock time
+# user: CPU time in user mode
+# sys:  CPU time in kernel mode
+```
 
 ---
 
-## 12. Putting It All Together – Practical Examples
+## 15. Modern Resource Control – cgroups and systemd
+
+### 15.1 `systemd-cgtop` – Show control group resource usage (like `top` for cgroups)
+```bash
+systemd-cgtop
+```
+
+### 15.2 `systemd-cgls` – List cgroup hierarchy
+```bash
+systemd-cgls
+```
+
+### 15.3 Checking a process's cgroup
+```bash
+cat /proc/[PID]/cgroup
+```
+
+### 15.4 Adjusting OOM Killer Preference
+```bash
+echo -1000 > /proc/[PID]/oom_adj    # protect from OOM (requires root)
+echo 1000 > /proc/[PID]/oom_adj     # make it a prime candidate
+```
+Alternatively, use `systemd` service `OOMScoreAdjust=` directive.
+
+---
+
+## 16. Putting It All Together – Practical Examples
 
 ### Example 1: Find a misbehaving process using too much CPU
 ```bash
@@ -443,31 +607,50 @@ watch -n 2 free -h
 top -b -n 1 > /var/log/top_snapshot_$(date +%Y%m%d).txt
 ```
 
+### Example 8: Identify which process has a file open (debugging "file busy")
+```bash
+lsof /path/to/config/file
+```
+
+### Example 9: Trace a hanging process
+```bash
+sudo strace -p 1234
+```
+
 ---
 
-## 13. Quick Reference Table
+## 17. Quick Reference Table
 
 | Task | Command |
 |------|---------|
 | List processes (snapshot) | `ps -ef` |
 | List all processes (BSD style) | `ps aux` |
 | Real‑time monitoring | `top` or `htop` |
-| Find PID of a process | `pidof processname` or `pgrep name` |
+| Find PID of a process | `pidof name` or `pgrep name` |
+| Find processes by full command line | `pgrep -f "pattern"` |
+| Process tree | `ps -ef --forest` or `pstree -p` |
 | Gracefully kill process | `kill PID` |
 | Force kill process | `kill -9 PID` |
 | Kill all processes by name | `pkill name` |
 | Suspend foreground process | `Ctrl+Z` |
 | Resume in background | `bg %1` |
 | Bring to foreground | `fg %1` |
+| Keep process after logout | `nohup`, `disown`, `screen`, `tmux` |
 | Start low priority process | `nice -n 19 command` |
 | Change priority of running process | `renice -n 10 -p PID` |
 | View disk usage | `df -h` |
 | View memory usage | `free -h` |
-| View CPU info | `lscpu` |
+| View load average | `uptime` |
+| View per‑core CPU info | `lscpu` |
+| System activity (CPU, memory, I/O) | `vmstat 2`, `iostat -x 2`, `sar` |
+| List open files | `lsof` |
+| Trace system calls | `strace -p PID` |
+| Measure execution time | `time command` |
+| List all signals | `kill -l` |
 
 ---
 
-## 14. Common Mistakes & Pitfalls
+## 18. Common Mistakes & Pitfalls
 
 | Mistake | Consequence | Fix |
 |---------|-------------|-----|
@@ -476,234 +659,12 @@ top -b -n 1 > /var/log/top_snapshot_$(date +%Y%m%d).txt
 | Starting long process in foreground and closing terminal | Process gets SIGHUP and terminates | Use `&` and `disown` or `nohup` |
 | Setting nice value too low (`-20`) on user process | Can starve system processes (requires root) | Only root can set negative nice values |
 | Not checking memory before running heavy job | OOM killer may kill critical processes | Use `free -h` and `vmstat` first |
+| Editing `/proc/[PID]/oom_adj` as non‑root | Permission denied | Use `sudo` |
+| Using `ps -ef` and missing daemons | Daemons have `?` TTY but still appear | Use `ps -ef` includes them; `ps -x` shows without terminal |
 
 ---
 
-## 15. Practice Lab – Verify Your Understanding
-
-1. Run `sleep 300` in the background. Find its PID with `pidof`. Verify with `ps -ef | grep sleep`.
-2. Suspend a foreground `ping` process with `Ctrl+Z`, then resume it in the background.
-3. Use `top` to find a process using the most CPU. Quit `top`.
-4. Start a process with low priority (`nice -n 15`) and verify its nice value using `ps -l`.
-5. Take a batch snapshot of `top` with 2 iterations and save to a file: `top -b -n 2 > top_snapshot.txt`.
-6. Use `ps -ef --forest` to see the process tree. Find the parent of your shell.
-7. Run `ps aux` and explain the meaning of `STAT` column for three different processes.
-
----
-
-This is an excellent, well‑structured chapter. It covers the essentials of process management thoroughly. Below is a detailed review followed by additional professional‑level topics you should add to make it truly comprehensive, plus a complete practical mastery test that covers everything—including the added material.
-
----
-
-## Deep Review of Chapter 9 – Monitoring and Managing Linux Processes
-
-### Strengths
-- **Clear definitions:** Process, PID/PPID, states, foreground/background, signals, nice values.
-- **Practical command coverage:** `ps`, `top`, `kill` family, job control.
-- **Well‑organized tables:** Makes quick reference easy.
-- **Real‑world examples:** Section 12 ties commands to actual tasks.
-- **Common pitfalls:** Helps avoid typical mistakes.
-
-### What's Missing (Important for Pro‑Level Mastery)
-
-| Missing Topic | Why It Matters |
-|---------------|----------------|
-| **`/proc` filesystem** | Deep inspection of process details (e.g., `/proc/[PID]/`). Essential for debugging. |
-| **`pstree`** | Visualize parent‑child relationships better than `ps --forest`. |
-| **`pgrep` and `pkill` with advanced matching** | Covered briefly but missing options like `-f` (full command), `-u` (user), `-P` (parent). |
-| **`nohup` and `disown` explained fully** | Ensures processes survive terminal logout. Critical for long‑running jobs. |
-| **`screen` / `tmux`** | Terminal multiplexers. Industry standard for keeping sessions alive on remote servers. |
-| **`lsof`** | List open files per process – crucial for finding which process uses a port or file. |
-| **`strace`** | Trace system calls of a process. Indispensable for debugging stuck or misbehaving programs. |
-| **`vmstat`, `iostat`, `sar`** | System‑wide performance metrics beyond `top` (especially `wa` – I/O wait). |
-| **`cgroups` and `systemd-cgls` / `systemd-cgtop`** | Modern resource control. Cloud engineers must understand container‑like isolation. |
-| **`oom_score` and `oom_adj`** | How the Out‑Of‑Memory killer chooses victims. Vital for tuning critical services. |
-| **`kill -l`** | List all available signals. |
-| **`time` command** | Measure how long a process takes. |
-| **`uptime`** | Quick system load average. |
-
-I will provide these additions as plain text you can insert into your notes.
-
----
-
-## Additions to Chapter 9 (Insert at Appropriate Places)
-
-### Addition 1: The /proc Filesystem – Process Information Goldmine
-
-The `/proc` directory is a virtual filesystem containing runtime system information. Each process has a subdirectory named by its PID (`/proc/[PID]/`).
-
-| File / Directory | Purpose |
-|------------------|---------|
-| `/proc/[PID]/cmdline` | Command line used to start the process (null‑separated). |
-| `/proc/[PID]/environ` | Environment variables of the process. |
-| `/proc/[PID]/fd/` | Directory of open file descriptors (links to actual files/sockets). |
-| `/proc/[PID]/exe` | Symlink to the executable binary. |
-| `/proc/[PID]/cwd` | Symlink to current working directory. |
-| `/proc/[PID]/status` | Human‑readable status (Name, State, Uid, VmRSS, Threads). |
-| `/proc/[PID]/stat` | Machine‑readable status (used by `ps`). |
-| `/proc/[PID]/limits` | Resource limits (ulimit). |
-| `/proc/[PID]/oom_score` | Current OOM score (higher = more likely to be killed). |
-| `/proc/[PID]/oom_adj` | OOM adjustment value (-1000 to 1000) to influence killer. |
-
-Example: Find what files a process has open:
-```bash
-ls -l /proc/1234/fd/
-```
-
-Example: See full command line of a process (useful when `ps` truncates):
-```bash
-cat /proc/1234/cmdline | tr '\0' ' '
-```
-
----
-
-### Addition 2: Advanced Process Listing Tools
-
-**pstree** – Display process tree visually.
-```bash
-pstree -p          # show PIDs
-pstree -u          # show user ownership
-pstree -a          # show command line arguments
-pstree -s PID      # show only ancestors of PID
-```
-
-**pgrep with advanced filters** (more than just name):
-```bash
-pgrep -u alice                     # processes owned by alice
-pgrep -P 1234                      # child processes of PID 1234
-pgrep -f "nginx: worker"           # match full command line
-pgrep -l ssh                       # show process name and PID
-pgrep -c bash                      # count of processes matching
-```
-
-**pidof** is simple; `pgrep` is more powerful.
-
----
-
-### Addition 3: Keeping Processes Alive After Logout – nohup, disown, screen, tmux
-
-| Method | Command | When to Use |
-|--------|---------|-------------|
-| `nohup` | `nohup long_script.sh &` | Start a process that ignores SIGHUP. Output goes to `nohup.out`. |
-| `disown` | `long_script &` then `disown %1` | Already started a job; detach it from shell. |
-| `screen` | `screen` then `Ctrl+A D` to detach | Full terminal multiplexer with reattach capability. |
-| `tmux` | `tmux new -s mysession` then `Ctrl+B D` | Modern alternative to screen with more features. |
-
-**screen basic commands:**
-```bash
-screen -S session_name     # create named session
-screen -ls                 # list sessions
-screen -r session_name     # reattach
-```
-
-**tmux basic commands:**
-```bash
-tmux new -s dev            # new session
-tmux ls                    # list sessions
-tmux attach -t dev         # reattach
-```
-
----
-
-### Addition 4: Process Troubleshooting Power Tools
-
-**lsof** – List open files (everything is a file).
-```bash
-lsof -i :80                # which process is listening on port 80?
-lsof -p 1234               # all files opened by PID 1234
-lsof -u alice              # files opened by user alice
-lsof /var/log/syslog       # processes using this file
-lsof +D /home              # all open files under /home
-```
-
-**strace** – Trace system calls and signals.
-```bash
-strace -p 1234             # attach to running process
-strace -c -p 1234          # summary of syscalls when detached (Ctrl+C)
-strace -e open ls          # trace only open() calls of 'ls'
-strace -o output.txt command  # save trace to file
-```
-Use `strace` when a process hangs or behaves unexpectedly.
-
-**time** – Measure execution duration.
-```bash
-time cp largefile.iso /backup/
-# real: wall clock time
-# user: CPU time in user mode
-# sys:  CPU time in kernel mode
-```
-
----
-
-### Addition 5: System Performance Commands
-
-**uptime** – Quick load average.
-```bash
-uptime
-# 14:23:45 up 10 days,  3:15,  2 users,  load average: 0.05, 0.10, 0.15
-```
-Load average shows 1, 5, and 15 minute averages of runnable + uninterruptible tasks.
-
-**vmstat** – Virtual memory statistics.
-```bash
-vmstat 2 5                # every 2 seconds, 5 times
-```
-Columns: r (runnable), b (blocked on I/O), swpd, free, buff, cache, si (swap in), so (swap out), bi (block in), bo (block out), in (interrupts), cs (context switches), us, sy, id, wa (I/O wait), st (steal).
-
-**iostat** – CPU and I/O statistics for devices/partitions.
-```bash
-iostat -x 2               # extended stats every 2 sec
-```
-Look for `%util` (device saturation) and `await` (I/O wait time).
-
-**sar** – System Activity Reporter (part of sysstat package).
-```bash
-sar -u 2 5                # CPU usage every 2 sec, 5 times
-sar -r                    # memory usage history
-sar -n DEV                # network device statistics
-```
-
----
-
-### Addition 6: Modern Resource Control – cgroups and systemd
-
-**systemd-cgtop** – Show control group resource usage (like `top` for cgroups).
-```bash
-systemd-cgtop
-```
-
-**systemd-cgls** – List cgroup hierarchy.
-```bash
-systemd-cgls
-```
-
-**Checking a process's cgroup:**
-```bash
-cat /proc/[PID]/cgroup
-```
-
-**Adjust OOM killer preference:**
-```bash
-echo -1000 > /proc/[PID]/oom_adj    # protect from OOM (requires root)
-echo 1000 > /proc/[PID]/oom_adj     # make it a prime candidate
-```
-Alternatively, use `systemd` service `OOMScoreAdjust=` directive.
-
----
-
-### Addition 7: List All Signals
-```bash
-kill -l
-```
-Shows all 64 signals (1-64). Common ones: 1 SIGHUP, 2 SIGINT, 9 SIGKILL, 15 SIGTERM, 17 SIGCHLD, 18 SIGCONT, 19 SIGSTOP, 20 SIGTSTP.
-
----
-
-Now, here is a complete, professional‑level practical test that covers **everything** in the chapter plus the additions above.
-
----
-
-## 16. Complete Professional Mastery Test – Linux Process Management
+## 19. Complete Professional Mastery Test – Linux Process Management
 
 This test simulates real‑world system administration and cloud engineering tasks. Perform it on a Linux VM or container with `sudo` access. **Attempt all tasks before looking at the answer key.**
 
@@ -828,29 +789,7 @@ Kill any remaining test processes (`sleep`, `dd`, `find`), remove test files, an
 
 ---
 
-## 17. Self‑Evaluation Checklist
-
-| I can... | Done |
-|----------|------|
-| Find a process PID using `pidof`, `pgrep`, and `ps` | ☐ |
-| Interpret process states (R, S, D, T, Z) and identify zombies | ☐ |
-| Manage foreground/background jobs with `&`, `Ctrl+Z`, `bg`, `fg`, `jobs` | ☐ |
-| Use `disown`, `nohup`, `screen`, or `tmux` to keep processes alive | ☐ |
-| Read detailed process info from `/proc/[PID]/` | ☐ |
-| View process trees with `ps --forest` and `pstree` | ☐ |
-| Send signals with `kill`, `pkill`, `killall` and know when to use `-9` | ☐ |
-| Adjust process priority with `nice` and `renice` | ☐ |
-| Monitor real‑time system resources with `top`, `htop`, `vmstat`, `iostat` | ☐ |
-| Use `lsof` to find open files and listening ports | ☐ |
-| Trace process system calls with `strace` | ☐ |
-| Measure execution time with `time` | ☐ |
-| Understand load average and CPU core correlation | ☐ |
-| Adjust OOM killer behavior via `oom_adj` | ☐ |
-| Troubleshoot hung processes using signals and tracing | ☐ |
-
----
-
-## 18. Answer Key
+## 20. Answer Key
 
 ### Part 1
 
@@ -943,6 +882,31 @@ Parent is the shell that didn't reap.
 
 `pkill -u $USER sleep dd find`; `screen -X quit` or `tmux kill-server`.
 
+---
 
+## 21. Self‑Evaluation Checklist
+
+| I can... | Done |
+|----------|------|
+| Find a process PID using `pidof`, `pgrep`, and `ps` | ☐ |
+| Interpret process states (R, S, D, T, Z) and identify zombies | ☐ |
+| Manage foreground/background jobs with `&`, `Ctrl+Z`, `bg`, `fg`, `jobs` | ☐ |
+| Use `disown`, `nohup`, `screen`, or `tmux` to keep processes alive | ☐ |
+| Read detailed process info from `/proc/[PID]/` | ☐ |
+| View process trees with `ps --forest` and `pstree` | ☐ |
+| Send signals with `kill`, `pkill`, `killall` and know when to use `-9` | ☐ |
+| Adjust process priority with `nice` and `renice` | ☐ |
+| Monitor real‑time system resources with `top`, `htop`, `vmstat`, `iostat` | ☐ |
+| Use `lsof` to find open files and listening ports | ☐ |
+| Trace process system calls with `strace` | ☐ |
+| Measure execution time with `time` | ☐ |
+| Understand load average and CPU core correlation | ☐ |
+| Adjust OOM killer behavior via `oom_adj` | ☐ |
+| Troubleshoot hung processes using signals and tracing | ☐ |
+
+---
+
+**Date documented:** 2026-04-19  
+**Sources:** Linux Administration, GeeksforGeeks, man pages, Red Hat documentation
 
 ---
