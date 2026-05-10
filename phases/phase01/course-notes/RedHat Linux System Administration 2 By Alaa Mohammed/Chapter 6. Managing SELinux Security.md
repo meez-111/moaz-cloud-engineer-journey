@@ -872,5 +872,26 @@ sudo touch /.autorelabel && sudo reboot
 
 ---
 
+very useful youtube selinux resources:
+
+
+https://www.youtube.com/playlist?list=PLdAPaU8eLjLZLoDr4sFBXnWH55nRBcwVc
+
+
+https://www.youtube.com/watch?v=_WOKRaM-HI4
+
+
+https://www.youtube.com/watch?v=9nxUaoLD2lc
+
+
+https://www.youtube.com/watch?v=OO5m3cGva_4
+
+
+https://www.youtube.com/watch?v=jBo1oc3dVj8
+
+
+
+https://www.youtube.com/watch?v=oSTsn-QhM-0
+
 **Date documented:** 2026-05-10  
 **Sources:** Red Hat Enterprise Linux SELinux documentation, GitHub Security Lab introduction, man pages for SELinux utilities, NSA SELinux project.
