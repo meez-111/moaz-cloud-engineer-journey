@@ -296,6 +296,8 @@ At the GRUB2 menu:
 
 # new and reliable password reset method
 
+https://www.youtube.com/watch?v=HK7OI3uboKg
+
 This video, by beanologi, provides a guide on how to reset a forgotten root password on RHEL 9.0 as part of an RHCSA exam objective. Key points include:
 
 Boot Process Intervention: The creator demonstrates booting the system by passing init=/bin/bash to the kernel via the GRUB menu (0:03:03-0:03:32).
