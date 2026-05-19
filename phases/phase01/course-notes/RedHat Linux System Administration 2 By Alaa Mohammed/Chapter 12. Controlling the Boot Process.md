@@ -24,6 +24,7 @@
   - [9. Resetting the Root Password (`rd.break`)](#9-resetting-the-root-password-rdbreak)
     - [9.1 Method 1: Using `rd.break` at Boot](#91-method-1-using-rdbreak-at-boot)
     - [9.2 Method 2: Using `init=/bin/bash` (Legacy)](#92-method-2-using-initbinbash-legacy)
+- [new and reliable password reset method](#new-and-reliable-password-reset-method)
   - [10. Secure Boot (UEFI) – Overview](#10-secure-boot-uefi--overview)
   - [11. Quick Reference Table](#11-quick-reference-table)
   - [12. Real‑World Scenario – Managing a Headless Server’s Boot Process](#12-realworld-scenario--managing-a-headless-servers-boot-process)
@@ -290,6 +291,18 @@ At the GRUB2 menu:
 
 - At GRUB edit, replace `rhgb quiet` with `init=/bin/bash`.
 - Remount root as rw, change password, remount ro, reboot.
+
+---
+
+# new and reliable password reset method
+
+This video, by beanologi, provides a guide on how to reset a forgotten root password on RHEL 9.0 as part of an RHCSA exam objective. Key points include:
+
+Boot Process Intervention: The creator demonstrates booting the system by passing init=/bin/bash to the kernel via the GRUB menu (0:03:03-0:03:32).
+File System Access: You must remount the root file system as read-write (mount -o remount,rw /) to modify system files (0:03:38-0:04:19).
+Managing SE Linux: Because SE Linux is disabled during this process, modifying /etc/shadow causes it to lose its security context. The creator demonstrates using chcon to manually restore the correct labels to avoid login failures (0:04:23-0:07:11).
+System Resumption: After resetting the password and fixing the context, the system must execute exec /sbin/init to properly boot into the systemd environment (0:07:12-0:08:06).
+Inconsistency Note: The creator specifically addresses why this manual method is preferred over others, noting inconsistent behavior with the rd.break command in early RHEL 9 versions (0:00:54-0:02:12).
 
 ---
 
